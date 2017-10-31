@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # LinkRav_Bot
 # by /u/bananagranola
+# Upgraded to Praw 5 by /u/randomstonerfromaus
 # posts ravelry information on settings.bot_subreddit
 # main()
 
@@ -34,14 +35,13 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 # delete comments with lots of downvotes
-#TODO: Fix
-#def delete_downvotes (user):
-#        user_comments = user.get_comments(limit = 20)
-#        for user_comment in user_comments:
-#                score = user_comment.score
-#                if score < karma_floor:
-#                        user_comment.delete()
-#                        logger.debug("DELETING: %s", user_comment.id)
+def delete_downvotes (user):
+        user_comments = user.comments.new(limit = 20)
+        for user_comment in user_comments:
+                score = user_comment.score
+                if score < karma_floor:
+                        user_comment.delete()
+                        logger.debug("DELETING: %s", user_comment.id)
 
 def uniq (input):
         output = []
@@ -50,23 +50,35 @@ def uniq (input):
                         output.append(x)
         return output
 
+def writeDB(m):
+    s = ''
+    for c in m:
+        s = s + str(c) + '\n'
+    x = open('database.txt','w')  
+    x.write(s) 
+    x.close() 
+
+def readDB():
+    x = open('database.txt', 'r') 
+    s = x.read()
+    c = s.split()
+    x.close()
+    return c
+
 # process comments
 def process_comment (ravelry, comment):
         comment_reply = ""
         
         # ignore comments that didn't call LinkRav
-        # TODO: Replace RavBot with LinkRav
-        if re.search('.*RavBot.*', comment.body, re.IGNORECASE):
+        if re.search('.*LinkRav.*', comment.body, re.IGNORECASE):
                 matches = re.findall(RAV_MATCH, comment.body, re.IGNORECASE)
         else:
-                #TODO: Fix this
-                #logger.debug("COMMENT IGNORED: %s", comment.permalink)
+                logger.debug("COMMENT IGNORED: %s", comment.id)
                 return ""
 
         # iterate through comments that did call LinkRav
         if matches is not None:
-                #TODO: Fix this
-                #logger.debug("COMMENT PERMALINK: %s", comment.permalink)
+                logger.debug("COMMENT ID: %s", comment.id)
 
                 matches = uniq(matches)
                 
@@ -92,17 +104,23 @@ def main():
                 ravelry = Ravelry(ravelry_accesskey, ravelry_personalkey)
 
                 # log in to reddit
-                reddit = praw.Reddit('bot1', user_agent = 'linkrav by /u/bananagranola')
+                reddit = praw.Reddit('LinkRav', user_agent = 'linkrav by /u/bananagranola')
 
+                finishedComments = readDB()
+                
                 # retrieve comments
-                # TODO: Insert limit here
-                inbox = reddit.inbox.unread(True, limit=None)
+                inbox = reddit.inbox.unread(True, limit=100)
 
                 # iterate through comments
                 for item in inbox:
 
                         #Check if comment
                         if isinstance(item, Comment):
+
+                                if item.id in finishedComments:
+                                        #This will spam the log, but probably a good idea to leave for debug purposes.
+                                        logger.debug("COMMENT IGNORED: %s", item.id)
+                                        continue
                                 
                                 # process comment and submit
                                 comment_reply = process_comment (ravelry, item)
@@ -110,14 +128,16 @@ def main():
                                 reply = None
                                 if comment_reply != "":
                                         reply = item.reply(comment_reply)
-                                        #TODO: Fix this line
-                                        #logger.info(reply.permalink)
+                                        logger.info(item.id)
+                                finishedComments.append(item.id)
                         else:
                                 continue
 
                 #TODO: Reenable when fixed
-                #delete_downvotes(reddit.redditor(reddit_username))
+                delete_downvotes(reddit.redditor('LinkRav_Bot'))
 
+                writeDB(finishedComments)
+                
         except requests.exceptions.ConnectionError, e:
                 logger.error('ConnectionError: %s', str(e.args))
                 sys.exit(1)
@@ -127,16 +147,15 @@ def main():
         except requests.exceptions.Timeout, e:
                 logger.error('Timeout: %s', str(e.args))
                 sys.exit(1)
-#TODO: Fix praw exceptions
-#        except praw.errors.ClientException, e:
-#                logger.error('ClientException: %s', str(e.args))
-#                sys.exit(1)
-#        except praw.errors.ExceptionList, e:
-#                logger.error('ExceptionList: %s', str(e.args))
-#                sys.exit(1)
-#        except praw.errors.APIException, e:
-#                logger.error('APIException: %s', str(e.args))
-#                sys.exit(1)
+        except praw.exceptions.ClientException, e:
+                logger.error('ClientException: %s', str(e.args))
+                sys.exit(1)
+        except praw.exceptions.PRAWException, e:
+                logger.error('ExceptionList: %s', str(e.args))
+                sys.exit(1)
+        except praw.exceptions.APIException, e:
+                logger.error('APIException: %s', str(e.args))
+                sys.exit(1)
 
 if __name__ == "__main__":
         main()
