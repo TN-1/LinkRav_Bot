@@ -3,5 +3,3 @@
 
 ravelry_accesskey = ""
 ravelry_personalkey = ""
-reddit_username = ""
-reddit_password = ""
