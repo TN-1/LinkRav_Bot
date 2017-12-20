@@ -26,4 +26,4 @@ PROJ_API = RAV_API + "projects/{}.json"
 YARN_API = RAV_API + "yarns/{}.json"
 
 START_NOTE = "#####&#009;\n######&#009;\n####&#009;\n"
-END_NOTE = "*To call me, put \"/u/LinkRav_Bot\" in your post! Details are [here](http://www.reddit.com/r/knitting/comments/25pw9s/linkrav_bot_trial_going_live/).*"
+END_NOTE = "*To call me, put \"/u/RavBot\" in your post! Details are [here](https://www.reddit.com/r/knitting/comments/7d0i99/i_have_resurrected_ulinkrav_bot_details_inside/).*"

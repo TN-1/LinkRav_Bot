@@ -55,3 +55,7 @@ docs/_build/
 auth_my.py
 praw.ini
 database.txt
+RavBot/
+*.sln
+*.pyproj
+.vs/
