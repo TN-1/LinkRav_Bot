@@ -53,3 +53,5 @@ coverage.xml
 docs/_build/
 
 auth_my.py
+praw.ini
+database.txt
