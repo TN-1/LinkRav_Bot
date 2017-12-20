@@ -12,7 +12,8 @@ import re
 import requests
 import signal
 import sys
-
+from optparse import OptionParser
+from praw.models import Comment
 # import linkrav_bot modules
 from auth_my import *
 from constants import *
@@ -21,8 +22,6 @@ from ravelry import *
 from pattern import *
 from project import *
 from yarn import *
-
-from praw.models import Comment
 
 # basic logging
 logging.basicConfig()
@@ -51,7 +50,32 @@ def uniq (input):
     return output
 
 # process comments
-def process_comment (ravelry, comment):
+def process_comment_subreddit (ravelry, comment):
+    comment_reply = ""
+        
+    matches = re.findall(RAV_MATCH, comment.body, re.IGNORECASE)
+
+    if matches is not None:
+        logger.debug("COMMENT ID: %s", comment.id)
+
+        matches = uniq(matches)
+                
+        # append to comments
+        for match in matches:
+            match_string = ravelry.url_to_string (match)
+            if match_string is not None:
+                comment_reply += match_string
+                comment_reply += "*****\n"
+
+    # generate comment
+    if comment_reply != "":
+        comment_reply = START_NOTE + comment_reply + END_NOTE
+        logger.debug("\n\n-----%s-----\n\n", comment_reply)
+
+    # return comment text
+    return comment_reply
+
+def process_comment_inbox (ravelry, comment):
     comment_reply = ""
         
     # ignore comments that didn't call LinkRav
@@ -82,7 +106,87 @@ def process_comment (ravelry, comment):
     # return comment text
     return comment_reply
 
+def CheckComments(item, reddit):
+    Continue = False
+
+    comment = reddit.comment(item.id)
+    comment.refresh()
+    comment.replies.replace_more(0)
+
+    for com in comment.replies:
+        if com.author == "RavBot":
+            Continue = True
+            break
+
+    return Continue
+
+def CheckInbox(reddit, ravelry):
+    logger.info("Checking inbox...")
+
+    # retrieve comments
+    inbox = reddit.inbox.unread(True, limit=25)
+
+    # iterate through comments
+    for item in inbox:
+
+        #Check if comment
+        if isinstance(item, Comment):
+
+            if CheckComments(item, reddit):
+                logger.info("Comment " + item.id + " ignored: Already replied")
+                continue
+                                                
+            # process comment and submit
+            comment_reply = process_comment_inbox(ravelry, item)
+                                                                         
+            reply = None
+            if comment_reply != "":
+                reply = item.reply(comment_reply)
+                logger.info(item.id)
+            else:
+                logger.debug("Parse failed")
+        else:
+            continue
+
+
+    delete_downvotes(reddit.redditor('RavBot'))
+                
+
+def CheckSub(reddit, ravelry):
+    logger.info("Checking subbredits....")
+
+    for item in reddit.subreddit("knitting+crochet").comments(limit=250):
+        if item.author == "RavBot":
+            logger.debug("RavBot comment. Ignorning comment " + item.id)
+            continue
+        matches = re.findall(RAV_MATCH, item.body, re.IGNORECASE)
+
+        if len(matches) == 0:
+            logger.debug("No link. Ignorning comment " + item.id)
+            continue
+
+        if CheckComments(item, reddit):
+            logger.info("Comment " + item.id + " ignored: Already replied")
+            continue
+
+        comment_reply = process_comment_subreddit (ravelry, item)
+                                                                         
+        reply = None
+        if comment_reply != "":
+            reply = item.reply(comment_reply)
+            logger.info(item.id)
+        else:
+            logger.debug("Parse failed")
+
+
 def main():
+    parser = OptionParser()
+    parser.add_option("-i", "--inbox", action="store_true", dest="inbox")
+    parser.add_option("-s", "--subreddit", action="store_true", dest="subreddit")
+    (options, args) = parser.parse_args()
+
+    if len(sys.argv) == 1:
+        logger.debug("Must specify atleast 1 runmode")
 
     try:
         # log into ravelry
@@ -90,46 +194,12 @@ def main():
 
         # log in to reddit
         reddit = praw.Reddit('LinkRav', user_agent = 'linkrav by /u/bananagranola')
-                
-        # retrieve comments
-        inbox = reddit.inbox.unread(True, limit=25)
 
-        # iterate through comments
-        for item in inbox:
-
-            #Check if comment
-            if isinstance(item, Comment):
-
-                Continue = False
-
-                comment = reddit.comment(item.id)
-                comment.refresh()
-                comment.replies.replace_more(0)
-
-                for com in comment.replies:
-                    if com.author == "RavBot":
-                        Continue = True
-                        continue
-
-                if Continue == True:
-                    logger.debug("Comment " + item.id + " ignored: Already replied")
-                    continue
-                                                
-                # process comment and submit
-                comment_reply = process_comment (ravelry, item)
-                                                                         
-                reply = None
-                if comment_reply != "":
-                    reply = item.reply(comment_reply)
-                    logger.info(item.id)
-                else:
-                    logger.debug("Parse failed")
-            else:
-                continue
-
-
-        delete_downvotes(reddit.redditor('RavBot'))
-                
+        if options.inbox == True:
+            CheckInbox(reddit, ravelry)
+        if options.subreddit == True:
+            CheckSub(reddit, ravelry)
+    
     except requests.exceptions.ConnectionError, e:
             logger.error('ConnectionError: %s', str(e.args))
             sys.exit(1)
