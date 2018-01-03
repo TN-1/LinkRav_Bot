@@ -14,6 +14,7 @@ import signal
 import sys
 from optparse import OptionParser
 from praw.models import Comment
+
 # import linkrav_bot modules
 from auth_my import *
 from constants import *
@@ -52,8 +53,13 @@ def uniq (input):
 # process comments
 def process_comment_subreddit (ravelry, comment):
     comment_reply = ""
-        
+    users_ignore = []
+    
     matches = re.findall(RAV_MATCH, comment.body, re.IGNORECASE)
+
+    if comment.author in users_ignore:
+        logger.debug("User has opted out. Ignoring.")
+        return
 
     if matches is not None:
         logger.debug("COMMENT ID: %s", comment.id)
@@ -69,7 +75,7 @@ def process_comment_subreddit (ravelry, comment):
 
     # generate comment
     if comment_reply != "":
-        comment_reply = START_NOTE + comment_reply + END_NOTE
+        comment_reply = START_NOTE + comment_reply + END_NOTE_S
         logger.debug("\n\n-----%s-----\n\n", comment_reply)
 
     # return comment text
@@ -100,7 +106,7 @@ def process_comment_inbox (ravelry, comment):
 
     # generate comment
     if comment_reply != "":
-        comment_reply = START_NOTE + comment_reply + END_NOTE
+        comment_reply = START_NOTE + comment_reply + END_NOTE_I
         logger.debug("\n\n-----%s-----\n\n", comment_reply)
 
     # return comment text
