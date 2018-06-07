@@ -119,7 +119,7 @@ class Pattern:
 		photos_comment = ""
 		i = 1
 		for photo in self.photos:
-			photos_comment += u" [{}]({})".format(i, photo)
+			photos_comment += u" [Img {}]({})".format(i, photo)
 			i += 1
 			if i > max_photos:
 				break
